@@ -80,22 +80,36 @@ var MyBot = /** @class */ (function () {
         }
     };
     MyBot.prototype.onSupporting = function (orderSet, snapshot) {
+        var _this = this;
         try {
             var _a = this.makeReader(snapshot), reader = _a.reader, me = _a.me;
+            var ballPosition = snapshot.getBall().getPosition();
             var moveDestination = (0, settings_1.getMyExpectedPosition)(reader, this.mapper, this.number);
+            orderSet.setDebugMessage("returning to my position");
             if (reader.getBall().getHolder().getNumber() == 1 && this.number == 2) {
                 moveDestination = (0, settings_1.getMyExpectedPosition)(reader, this.mapper, this.number);
-                var myOrder_1 = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination);
+                var myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination);
                 orderSet.setDebugMessage("assisting the goalkeeper");
-                orderSet.setOrdersList([myOrder_1]);
+                orderSet.setOrdersList([myOrder]);
                 return orderSet;
             }
-            if (this.shouldICatchTheBall(reader, me)) {
-                moveDestination = snapshot.getBall().getPosition();
+            var closePlayers = this.nearestPlayers(reader.getMyTeam().getPlayersList(), ballPosition, 3, [1,
+                snapshot.getBall().getHolder().getNumber()
+            ]);
+            if (closePlayers.find(function (info) { return info.number == _this.number; })) {
+                var distToMate = lugo4node_1.geo.distanceBetweenPoints(me.getPosition(), ballPosition);
+                if (distToMate > lugo4node_1.SPECS.PLAYER_SIZE * 4) {
+                    moveDestination = ballPosition;
+                }
+                else {
+                    // todo find the best position?
+                    moveDestination = reader.getOpponentGoal().getCenter();
+                }
             }
-            var myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination);
-            orderSet.setDebugMessage("supporting");
-            orderSet.setOrdersList([myOrder]);
+            var moveOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination);
+            // we can ALWAYS try to catch the ball it we are not holding it
+            var catchOrder = reader.makeOrderCatch();
+            orderSet.setOrdersList([moveOrder, catchOrder]);
             return orderSet;
         }
         catch (e) {
@@ -174,6 +188,24 @@ var MyBot = /** @class */ (function () {
             }
         }
         return shouldGo;
+    };
+    MyBot.prototype.nearestPlayers = function (players, pointTarget, count, ignore) {
+        var playersDist = [];
+        for (var _i = 0, players_1 = players; _i < players_1.length; _i++) {
+            var player = players_1[_i];
+            if (ignore.includes(player.getNumber())) {
+                continue;
+            }
+            playersDist.push({
+                dist: lugo4node_1.geo.distanceBetweenPoints(player.getPosition(), pointTarget),
+                number: player.getNumber(),
+                player: player
+            });
+        }
+        playersDist.sort(function (a, b) {
+            return a.dist - b.dist;
+        });
+        return playersDist.slice(0, count);
     };
     return MyBot;
 }());

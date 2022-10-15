@@ -99,8 +99,11 @@ export class MyBot implements Bot {
 
     onSupporting(orderSet: Lugo.OrderSet, snapshot: Lugo.GameSnapshot): Lugo.OrderSet {
         try {
-            const {reader, me} = this.makeReader(snapshot)
+            const { reader, me } = this.makeReader(snapshot)
+            const ballPosition = snapshot.getBall().getPosition()
+
             let moveDestination = getMyExpectedPosition(reader, this.mapper, this.number)
+            orderSet.setDebugMessage("returning to my position")
 
             if (reader.getBall().getHolder().getNumber() == 1 && this.number == 2) {
                 moveDestination = getMyExpectedPosition(reader, this.mapper, this.number)
@@ -110,14 +113,26 @@ export class MyBot implements Bot {
                 return orderSet
             }
 
-            if (this.shouldICatchTheBall(reader, me)) {
-                moveDestination = snapshot.getBall().getPosition()
+            const closePlayers = this.nearestPlayers(reader.getMyTeam().getPlayersList(), ballPosition, 3,
+                [1,
+                    snapshot.getBall().getHolder().getNumber()
+                ])
+
+            if (closePlayers.find(info => info.number == this.number)) {
+                const distToMate = geo.distanceBetweenPoints(me.getPosition(), ballPosition)
+                if (distToMate > SPECS.PLAYER_SIZE * 4) {
+                    moveDestination = ballPosition
+                } else {
+                    // todo find the best position?
+                    moveDestination = reader.getOpponentGoal().getCenter()
+                }
             }
 
-            const myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination)
+            const moveOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination)
+            // we can ALWAYS try to catch the ball it we are not holding it
+            const catchOrder = reader.makeOrderCatch()
 
-            orderSet.setDebugMessage("supporting")
-            orderSet.setOrdersList([myOrder])
+            orderSet.setOrdersList([moveOrder, catchOrder])
             return orderSet
         } catch (e) {
             console.log(`did not play this turn`, e)
@@ -206,6 +221,26 @@ export class MyBot implements Bot {
             }
         }
         return shouldGo;
+    }
+
+    private nearestPlayers(players: Array<Lugo.Player>, pointTarget: Lugo.Point, count: number, ignore: Array<number>): Array<{ dist: number, number: number, player: Lugo.Player }> {
+        let playersDist = []
+
+        for (const player of players) {
+            if (ignore.includes(player.getNumber())) {
+                continue
+            }
+            playersDist.push({
+                dist: geo.distanceBetweenPoints(player.getPosition(), pointTarget),
+                number: player.getNumber(),
+                player: player,
+            })
+        }
+
+        playersDist.sort((a, b) => {
+            return a.dist - b.dist
+        });
+        return playersDist.slice(0, count)
     }
 
 }
