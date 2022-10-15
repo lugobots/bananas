@@ -62,7 +62,7 @@ export class MyBot implements Bot {
             let moveDestination = getMyExpectedPosition(reader, this.mapper, this.number)
             orderSet.setDebugMessage("returning to my position")
             // if the ball is max 2 blocks away from me, I will move toward the ball
-            if (this.isINear(myRegion, ballRegion)) {
+            if(this.shouldICatchTheBall(reader, me)) {
                 moveDestination = ballPosition
                 orderSet.setDebugMessage("trying to catch the ball")
             }
@@ -84,10 +84,24 @@ export class MyBot implements Bot {
             const currentRegion = this.mapper.getRegionFromPoint(me.getPosition())
 
             let myOrder;
-            if (this.isINear(currentRegion, myGoalCenter)) {
+            if (this.isINear(currentRegion, myGoalCenter, 0)) {
                 myOrder = reader.makeOrderKickMaxSpeed(snapshot.getBall(), reader.getOpponentGoal().getCenter())
             } else {
-                myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), reader.getOpponentGoal().getCenter())
+                const closeOpponents = this.nearestPlayers(
+                    reader.getTeam(reader.getOpponentSide()).getPlayersList(),
+                    me.getPosition(),
+                    1, [])
+
+
+                if (closeOpponents[0].dist < SPECS.PLAYER_SIZE * 3) {
+                    const closeMate = this.nearestPlayers(
+                        reader.getMyTeam().getPlayersList(),
+                        me.getPosition(),
+                        1, [1, this.number])
+                    myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), closeMate[0].player.getPosition())
+                } else {
+                    myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), reader.getOpponentGoal().getCenter())
+                }
             }
             orderSet.setDebugMessage("attack!")
             orderSet.setOrdersList([myOrder])
@@ -173,8 +187,7 @@ export class MyBot implements Bot {
         // for now, we are not going anything here.
     }
 
-    private isINear(myPosition: Region, targetPosition: Region): boolean {
-        const minDist = 2;
+    private isINear(myPosition: Region, targetPosition: Region, minDist: number): boolean {
         const colDist = myPosition.getCol() - targetPosition.getCol()
         const rowDist = myPosition.getRow() - targetPosition.getRow()
         return Math.hypot(colDist, rowDist) <= minDist
@@ -199,7 +212,7 @@ export class MyBot implements Bot {
         const ballRegion = this.mapper.getRegionFromPoint(ballPosition)
         const myRegion = this.mapper.getRegionFromPoint(me.getPosition())
 
-        if (!this.isINear(myRegion, ballRegion)) {
+        if (!this.isINear(myRegion, ballRegion, 2)) {
             return false
         }
 
@@ -212,7 +225,7 @@ export class MyBot implements Bot {
         for (const player of reader.getMyTeam().getPlayersList()) {
             const playerRegion = this.mapper.getRegionFromPoint(player.getPosition())
             const playerDistance = geo.distanceBetweenPoints(ballPosition, player.getPosition())
-            if (player.getNumber() != 1 && this.isINear(playerRegion, ballRegion) && playerDistance < myDistance) {
+            if (player.getNumber() != 1 && this.isINear(playerRegion, ballRegion, 2) && playerDistance < myDistance) {
                 closerPlayers += 1
                 if (closerPlayers >= 2) {
                     shouldGo = false
