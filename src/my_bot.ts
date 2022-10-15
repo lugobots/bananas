@@ -102,6 +102,14 @@ export class MyBot implements Bot {
             const {reader, me} = this.makeReader(snapshot)
             let moveDestination = getMyExpectedPosition(reader, this.mapper, this.number)
 
+            if (reader.getBall().getHolder().getNumber() == 1 && this.number == 2) {
+                moveDestination = getMyExpectedPosition(reader, this.mapper, this.number)
+                const myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination)
+                orderSet.setDebugMessage("assisting the goalkeeper")
+                orderSet.setOrdersList([myOrder])
+                return orderSet
+            }
+
             if (this.shouldICatchTheBall(reader, me)) {
                 moveDestination = snapshot.getBall().getPosition()
             }
@@ -122,6 +130,16 @@ export class MyBot implements Bot {
             let position = reader.getBall().getPosition()
             if (state !== PLAYER_STATE.DISPUTING_THE_BALL) {
                 position = reader.getMyGoal().getCenter()
+            }
+
+            if (state === PLAYER_STATE.HOLDING_THE_BALL) {
+                position = reader.getPlayer(this.side, 2).getPosition()
+                if (snapshot.getTurnsBallInGoalZone() > SPECS.BALL_TIME_IN_GOAL_ZONE * 0.80) {
+                    orderSet.setDebugMessage("returning the ball")
+                    const kick = reader.makeOrderKickMaxSpeed(reader.getBall(), position)
+                    orderSet.setOrdersList([kick])
+                    return orderSet
+                }
             }
 
             const myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), position)

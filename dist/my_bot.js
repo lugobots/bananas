@@ -83,6 +83,13 @@ var MyBot = /** @class */ (function () {
         try {
             var _a = this.makeReader(snapshot), reader = _a.reader, me = _a.me;
             var moveDestination = (0, settings_1.getMyExpectedPosition)(reader, this.mapper, this.number);
+            if (reader.getBall().getHolder().getNumber() == 1 && this.number == 2) {
+                moveDestination = (0, settings_1.getMyExpectedPosition)(reader, this.mapper, this.number);
+                var myOrder_1 = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination);
+                orderSet.setDebugMessage("assisting the goalkeeper");
+                orderSet.setOrdersList([myOrder_1]);
+                return orderSet;
+            }
             if (this.shouldICatchTheBall(reader, me)) {
                 moveDestination = snapshot.getBall().getPosition();
             }
@@ -101,6 +108,15 @@ var MyBot = /** @class */ (function () {
             var position = reader.getBall().getPosition();
             if (state !== lugo4node_1.PLAYER_STATE.DISPUTING_THE_BALL) {
                 position = reader.getMyGoal().getCenter();
+            }
+            if (state === lugo4node_1.PLAYER_STATE.HOLDING_THE_BALL) {
+                position = reader.getPlayer(this.side, 2).getPosition();
+                if (snapshot.getTurnsBallInGoalZone() > lugo4node_1.SPECS.BALL_TIME_IN_GOAL_ZONE * 0.80) {
+                    orderSet.setDebugMessage("returning the ball");
+                    var kick = reader.makeOrderKickMaxSpeed(reader.getBall(), position);
+                    orderSet.setOrdersList([kick]);
+                    return orderSet;
+                }
             }
             var myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), position);
             orderSet.setDebugMessage("supporting");
