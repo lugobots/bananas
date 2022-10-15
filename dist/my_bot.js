@@ -22,7 +22,7 @@ var MyBot = /** @class */ (function () {
             var moveDestination = (0, settings_1.getMyExpectedPosition)(reader, this.mapper, this.number);
             orderSet.setDebugMessage("returning to my position");
             // if the ball is max 2 blocks away from me, I will move toward the ball
-            if (this.isINear(myRegion, ballRegion)) {
+            if (this.shouldICatchTheBall(reader, me)) {
                 moveDestination = ballPosition;
                 orderSet.setDebugMessage("trying to catch the ball");
             }
@@ -82,8 +82,11 @@ var MyBot = /** @class */ (function () {
     MyBot.prototype.onSupporting = function (orderSet, snapshot) {
         try {
             var _a = this.makeReader(snapshot), reader = _a.reader, me = _a.me;
-            var ballHolderPosition = snapshot.getBall().getPosition();
-            var myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), ballHolderPosition);
+            var moveDestination = (0, settings_1.getMyExpectedPosition)(reader, this.mapper, this.number);
+            if (this.shouldICatchTheBall(reader, me)) {
+                moveDestination = snapshot.getBall().getPosition();
+            }
+            var myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination);
             orderSet.setDebugMessage("supporting");
             orderSet.setOrdersList([myOrder]);
             return orderSet;
@@ -130,6 +133,31 @@ var MyBot = /** @class */ (function () {
             throw new Error("did not find myself in the game");
         }
         return { reader: reader, me: me };
+    };
+    MyBot.prototype.shouldICatchTheBall = function (reader, me) {
+        var ballPosition = reader.getBall().getPosition();
+        var ballRegion = this.mapper.getRegionFromPoint(ballPosition);
+        var myRegion = this.mapper.getRegionFromPoint(me.getPosition());
+        if (!this.isINear(myRegion, ballRegion)) {
+            return false;
+        }
+        var shouldGo = true;
+        var myDistance = lugo4node_1.geo.distanceBetweenPoints(ballPosition, me.getPosition());
+        // unless, there are other players closer to the ball
+        var closerPlayers = 0;
+        for (var _i = 0, _a = reader.getMyTeam().getPlayersList(); _i < _a.length; _i++) {
+            var player = _a[_i];
+            var playerRegion = this.mapper.getRegionFromPoint(player.getPosition());
+            var playerDistance = lugo4node_1.geo.distanceBetweenPoints(ballPosition, player.getPosition());
+            if (player.getNumber() != 1 && this.isINear(playerRegion, ballRegion) && playerDistance < myDistance) {
+                closerPlayers += 1;
+                if (closerPlayers >= 2) {
+                    shouldGo = false;
+                    break;
+                }
+            }
+        }
+        return shouldGo;
     };
     return MyBot;
 }());

@@ -1,5 +1,5 @@
 `use strict`;
-import {GameSnapshotReader, PLAYER_STATE, Lugo, SPECS, Bot, Mapper, Region} from '@lugobots/lugo4node'
+import {GameSnapshotReader, PLAYER_STATE, Lugo, SPECS, Bot, Mapper, Region, geo} from '@lugobots/lugo4node'
 import {getMyExpectedPosition} from './settings';
 
 const TEAM_HOME = Lugo.Team.Side.HOME
@@ -35,7 +35,7 @@ export class MyBot implements Bot {
             orderSet.setDebugMessage("returning to my position")
             
             // if the ball is max 2 blocks away from me, I will move toward the ball
-            if (this.isINear(myRegion, ballRegion)) {
+            if(this.shouldICatchTheBall(reader, me)) {
                 moveDestination = ballPosition
                 orderSet.setDebugMessage("trying to catch the ball")
             }
@@ -100,8 +100,13 @@ export class MyBot implements Bot {
     onSupporting(orderSet: Lugo.OrderSet, snapshot: Lugo.GameSnapshot): Lugo.OrderSet {
         try {
             const {reader, me} = this.makeReader(snapshot)
-            const ballHolderPosition = snapshot.getBall().getPosition()
-            const myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), ballHolderPosition)
+            let moveDestination = getMyExpectedPosition(reader, this.mapper, this.number)
+
+            if (this.shouldICatchTheBall(reader, me)) {
+                moveDestination = snapshot.getBall().getPosition()
+            }
+
+            const myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), moveDestination)
 
             orderSet.setDebugMessage("supporting")
             orderSet.setOrdersList([myOrder])
@@ -156,5 +161,33 @@ export class MyBot implements Bot {
         return {reader, me}
     }
 
+    private shouldICatchTheBall(reader: GameSnapshotReader, me: Lugo.Player): boolean {
+        const ballPosition = reader.getBall().getPosition()
+        const ballRegion = this.mapper.getRegionFromPoint(ballPosition)
+        const myRegion = this.mapper.getRegionFromPoint(me.getPosition())
+
+        if (!this.isINear(myRegion, ballRegion)) {
+            return false
+        }
+
+        let shouldGo = true
+
+        const myDistance = geo.distanceBetweenPoints(ballPosition, me.getPosition())
+
+        // unless, there are other players closer to the ball
+        let closerPlayers = 0
+        for (const player of reader.getMyTeam().getPlayersList()) {
+            const playerRegion = this.mapper.getRegionFromPoint(player.getPosition())
+            const playerDistance = geo.distanceBetweenPoints(ballPosition, player.getPosition())
+            if (player.getNumber() != 1 && this.isINear(playerRegion, ballRegion) && playerDistance < myDistance) {
+                closerPlayers += 1
+                if (closerPlayers >= 2) {
+                    shouldGo = false
+                    break
+                }
+            }
+        }
+        return shouldGo;
+    }
 
 }

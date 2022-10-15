@@ -1,10 +1,12 @@
-# Lugo - The Dummies JS
+# Lugo - Bananas
  
-The Dummies JS is a Nodejs implementation of a player (bot) for [Lugo](https://lugobots.dev) game.
+Banan is a implementation of a player (bot) for [Lugo](https://lugobots.dev) game.
 
 This bot was made using the [Node Client Player](https://github.com/lugobots/lugo4node).
 
-Use this bot as a starting point to a new one. 
+:bangbang: **DO NOT** :bangbang: use this bot as a starting point to a new one!
+
+If you are looking for a quick-start, use one of the template bots listed on the official website.
 
 ## Dependencies
 
