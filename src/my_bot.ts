@@ -105,6 +105,10 @@ export class MyBot implements Bot {
                         me.getPosition(),
                         3, [1, this.number])
                     myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), closeMate[0].player.getPosition())
+                    const bestPassPlayer = this.findBestPass(closeMate, me.getPosition(), reader)
+                    if (bestPassPlayer !== null) {
+                        myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), bestPassPlayer.getPosition())
+                    }
                 } else {
                     myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), reader.getOpponentGoal().getCenter())
                 }
@@ -313,5 +317,53 @@ export class MyBot implements Bot {
             dist: Math.sqrt(dx * dx + dy * dy),
             between,
         }
+    }
+    
+    private findBestPass(closeMates: Array<{ dist: number; number: number; player: Lugo.Player }>, myPosition: Lugo.Point, reader: GameSnapshotReader): Lugo.Player {
+        const candidates = []
+        const opponents = reader.getOpponentTeam().getPlayersList().map(p => p.getPosition())
+        const goalCenter = reader.getOpponentGoal().getCenter()
+        for (const candidate of closeMates) {
+            if (candidate.dist > SPECS.PLAYER_SIZE * 8) {
+                continue
+            }
+
+            const obstacles = this.findObstacles(
+                myPosition,
+                candidate.player.getPosition(),
+                opponents,
+                SPECS.PLAYER_SIZE * 2,
+            )
+
+            const candidatesObstaclesToKick = this.findObstacles(
+                candidate.player.getPosition(),
+                goalCenter,
+                opponents,
+                SPECS.PLAYER_SIZE * 2,
+            )
+
+            const distToGoal = geo.distanceBetweenPoints(candidate.player.getPosition(), goalCenter)
+
+            let score = 0;
+            score -= obstacles.length * 10
+            score -= (candidate.dist / SPECS.PLAYER_SIZE) / 2
+            score -= (distToGoal / SPECS.PLAYER_SIZE) * 2
+
+            if (candidatesObstaclesToKick.length == 0) {
+                score += 30
+            }
+
+            candidates.push({
+                score,
+                player: candidate.player,
+            })
+        }
+        if (candidates.length == 0) {
+            return null
+        }
+        candidates.sort((a, b) => {
+            return b.score - a.score
+        });
+        return candidates[0].player
     }
 }

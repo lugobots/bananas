@@ -74,6 +74,10 @@ var MyBot = /** @class */ (function () {
                 if (obstacles.length > 0 && lugo4node_1.geo.distanceBetweenPoints(obstacles[0], me.getPosition()) < lugo4node_1.SPECS.PLAYER_SIZE * 5) {
                     var closeMate = this.nearestPlayers(reader.getMyTeam().getPlayersList(), me.getPosition(), 3, [1, this.number]);
                     myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), closeMate[0].player.getPosition());
+                    var bestPassPlayer = this.findBestPass(closeMate, me.getPosition(), reader);
+                    if (bestPassPlayer !== null) {
+                        myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), bestPassPlayer.getPosition());
+                    }
                 }
                 else {
                     myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), reader.getOpponentGoal().getCenter());
@@ -257,6 +261,38 @@ var MyBot = /** @class */ (function () {
             dist: Math.sqrt(dx * dx + dy * dy),
             between: between
         };
+    };
+    MyBot.prototype.findBestPass = function (closeMates, myPosition, reader) {
+        var candidates = [];
+        var opponents = reader.getOpponentTeam().getPlayersList().map(function (p) { return p.getPosition(); });
+        var goalCenter = reader.getOpponentGoal().getCenter();
+        for (var _i = 0, closeMates_1 = closeMates; _i < closeMates_1.length; _i++) {
+            var candidate = closeMates_1[_i];
+            if (candidate.dist > lugo4node_1.SPECS.PLAYER_SIZE * 8) {
+                continue;
+            }
+            var obstacles = this.findObstacles(myPosition, candidate.player.getPosition(), opponents, lugo4node_1.SPECS.PLAYER_SIZE * 2);
+            var candidatesObstaclesToKick = this.findObstacles(candidate.player.getPosition(), goalCenter, opponents, lugo4node_1.SPECS.PLAYER_SIZE * 2);
+            var distToGoal = lugo4node_1.geo.distanceBetweenPoints(candidate.player.getPosition(), goalCenter);
+            var score = 0;
+            score -= obstacles.length * 10;
+            score -= (candidate.dist / lugo4node_1.SPECS.PLAYER_SIZE) / 2;
+            score -= (distToGoal / lugo4node_1.SPECS.PLAYER_SIZE) * 2;
+            if (candidatesObstaclesToKick.length == 0) {
+                score += 30;
+            }
+            candidates.push({
+                score: score,
+                player: candidate.player
+            });
+        }
+        if (candidates.length == 0) {
+            return null;
+        }
+        candidates.sort(function (a, b) {
+            return b.score - a.score;
+        });
+        return candidates[0].player;
     };
     return MyBot;
 }());
