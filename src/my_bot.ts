@@ -83,20 +83,20 @@ export class MyBot implements Bot {
             const myGoalCenter = this.mapper.getRegionFromPoint(reader.getOpponentGoal().getCenter())
             const currentRegion = this.mapper.getRegionFromPoint(me.getPosition())
 
-            let myOrder;
+            let myOrder: Lugo.Order;
             if (this.isINear(currentRegion, myGoalCenter, 0)) {
                 myOrder = reader.makeOrderKickMaxSpeed(snapshot.getBall(), reader.getOpponentGoal().getCenter())
             } else {
                 const closeOpponents = this.nearestPlayers(
-                    reader.getTeam(reader.getOpponentSide()).getPlayersList(),
+                    reader.getOpponentTeam().getPlayersList(),
                     me.getPosition(),
-                    3, [])
+                    3, [1])
 
                 const obstacles = this.findObstacles(
                     me.getPosition(),
                     reader.getOpponentGoal().getCenter(),
                     closeOpponents.map(o => o.player.getPosition()),
-                    SPECS.PLAYER_SIZE * 2,
+                    SPECS.PLAYER_SIZE * 3,
                 )
 
                 if (obstacles.length > 0 && geo.distanceBetweenPoints(obstacles[0], me.getPosition()) < SPECS.PLAYER_SIZE * 5) {
@@ -109,6 +109,24 @@ export class MyBot implements Bot {
                     if (bestPassPlayer !== null) {
                         myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), bestPassPlayer.getPosition())
                     }
+                } else if (closeOpponents[0].dist < SPECS.PLAYER_SIZE * 5) {
+                    const destination = reader.getOpponentGoal().getCenter()
+                    let vect1 = new Lugo.Vector()
+                    vect1.setX(destination.getX() - me.getPosition().getX())
+                    vect1.setY(destination.getY() - me.getPosition().getY())
+                    vect1 = geo.normalize(vect1)
+
+                    let vect2 = new Lugo.Vector()
+                    vect2.setX(me.getPosition().getX() - closeOpponents[0].player.getPosition().getX())
+                    vect2.setY(me.getPosition().getY() - closeOpponents[0].player.getPosition().getY())
+                    vect2 = geo.normalize(vect2)
+
+                    const vect3 = new Lugo.Vector()
+                    vect3.setX(vect1.getX() + vect2.getX())
+                    vect3.setY(vect1.getY() + vect2.getY())
+
+                    myOrder = reader.makeOrderMoveFromVector(vect3, SPECS.PLAYER_MAX_SPEED)
+
                 } else {
                     myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), reader.getOpponentGoal().getCenter())
                 }
@@ -218,32 +236,21 @@ export class MyBot implements Bot {
     }
 
     private shouldICatchTheBall(reader: GameSnapshotReader, me: Lugo.Player): boolean {
-        const ballPosition = reader.getBall().getPosition()
-        const ballRegion = this.mapper.getRegionFromPoint(ballPosition)
-        const myRegion = this.mapper.getRegionFromPoint(me.getPosition())
-
-        if (!this.isINear(myRegion, ballRegion, 2)) {
-            return false
-        }
-
-        let shouldGo = true
-
-        const myDistance = geo.distanceBetweenPoints(ballPosition, me.getPosition())
-
-        // unless, there are other players closer to the ball
-        let closerPlayers = 0
+        const myDistance = geo.distanceBetweenPoints(me.getPosition(), reader.getBall().getPosition())
+        let closerPlayer = 0;
         for (const player of reader.getMyTeam().getPlayersList()) {
-            const playerRegion = this.mapper.getRegionFromPoint(player.getPosition())
-            const playerDistance = geo.distanceBetweenPoints(ballPosition, player.getPosition())
-            if (player.getNumber() != 1 && this.isINear(playerRegion, ballRegion, 2) && playerDistance < myDistance) {
-                closerPlayers += 1
-                if (closerPlayers >= 2) {
-                    shouldGo = false
-                    break
+            if (player.getNumber() == me.getNumber() || player.getNumber() == 1) {
+                continue;
+            }
+            const playerDist = geo.distanceBetweenPoints(player.getPosition(), reader.getBall().getPosition())
+            if (playerDist < myDistance) {
+                closerPlayer++;
+                if (closerPlayer >= 2) {
+                    return false;
                 }
             }
         }
-        return shouldGo;
+        return true;
     }
 
     private nearestPlayers(players: Array<Lugo.Player>, pointTarget: Lugo.Point, count: number, ignore: Array<number>): Array<{ dist: number, number: number, player: Lugo.Player }> {
@@ -318,7 +325,7 @@ export class MyBot implements Bot {
             between,
         }
     }
-    
+
     private findBestPass(closeMates: Array<{ dist: number; number: number; player: Lugo.Player }>, myPosition: Lugo.Point, reader: GameSnapshotReader): Lugo.Player {
         const candidates = []
         const opponents = reader.getOpponentTeam().getPlayersList().map(p => p.getPosition())

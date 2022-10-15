@@ -69,8 +69,8 @@ var MyBot = /** @class */ (function () {
                 myOrder = reader.makeOrderKickMaxSpeed(snapshot.getBall(), reader.getOpponentGoal().getCenter());
             }
             else {
-                var closeOpponents = this.nearestPlayers(reader.getTeam(reader.getOpponentSide()).getPlayersList(), me.getPosition(), 3, []);
-                var obstacles = this.findObstacles(me.getPosition(), reader.getOpponentGoal().getCenter(), closeOpponents.map(function (o) { return o.player.getPosition(); }), lugo4node_1.SPECS.PLAYER_SIZE * 2);
+                var closeOpponents = this.nearestPlayers(reader.getOpponentTeam().getPlayersList(), me.getPosition(), 3, [1]);
+                var obstacles = this.findObstacles(me.getPosition(), reader.getOpponentGoal().getCenter(), closeOpponents.map(function (o) { return o.player.getPosition(); }), lugo4node_1.SPECS.PLAYER_SIZE * 3);
                 if (obstacles.length > 0 && lugo4node_1.geo.distanceBetweenPoints(obstacles[0], me.getPosition()) < lugo4node_1.SPECS.PLAYER_SIZE * 5) {
                     var closeMate = this.nearestPlayers(reader.getMyTeam().getPlayersList(), me.getPosition(), 3, [1, this.number]);
                     myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), closeMate[0].player.getPosition());
@@ -78,6 +78,21 @@ var MyBot = /** @class */ (function () {
                     if (bestPassPlayer !== null) {
                         myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), bestPassPlayer.getPosition());
                     }
+                }
+                else if (closeOpponents[0].dist < lugo4node_1.SPECS.PLAYER_SIZE * 5) {
+                    var destination = reader.getOpponentGoal().getCenter();
+                    var vect1 = new lugo4node_1.Lugo.Vector();
+                    vect1.setX(destination.getX() - me.getPosition().getX());
+                    vect1.setY(destination.getY() - me.getPosition().getY());
+                    vect1 = lugo4node_1.geo.normalize(vect1);
+                    var vect2 = new lugo4node_1.Lugo.Vector();
+                    vect2.setX(me.getPosition().getX() - closeOpponents[0].player.getPosition().getX());
+                    vect2.setY(me.getPosition().getY() - closeOpponents[0].player.getPosition().getY());
+                    vect2 = lugo4node_1.geo.normalize(vect2);
+                    var vect3 = new lugo4node_1.Lugo.Vector();
+                    vect3.setX(vect1.getX() + vect2.getX());
+                    vect3.setY(vect1.getY() + vect2.getY());
+                    myOrder = reader.makeOrderMoveFromVector(vect3, lugo4node_1.SPECS.PLAYER_MAX_SPEED);
                 }
                 else {
                     myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), reader.getOpponentGoal().getCenter());
@@ -176,29 +191,22 @@ var MyBot = /** @class */ (function () {
         return { reader: reader, me: me };
     };
     MyBot.prototype.shouldICatchTheBall = function (reader, me) {
-        var ballPosition = reader.getBall().getPosition();
-        var ballRegion = this.mapper.getRegionFromPoint(ballPosition);
-        var myRegion = this.mapper.getRegionFromPoint(me.getPosition());
-        if (!this.isINear(myRegion, ballRegion, 2)) {
-            return false;
-        }
-        var shouldGo = true;
-        var myDistance = lugo4node_1.geo.distanceBetweenPoints(ballPosition, me.getPosition());
-        // unless, there are other players closer to the ball
-        var closerPlayers = 0;
+        var myDistance = lugo4node_1.geo.distanceBetweenPoints(me.getPosition(), reader.getBall().getPosition());
+        var closerPlayer = 0;
         for (var _i = 0, _a = reader.getMyTeam().getPlayersList(); _i < _a.length; _i++) {
             var player = _a[_i];
-            var playerRegion = this.mapper.getRegionFromPoint(player.getPosition());
-            var playerDistance = lugo4node_1.geo.distanceBetweenPoints(ballPosition, player.getPosition());
-            if (player.getNumber() != 1 && this.isINear(playerRegion, ballRegion, 2) && playerDistance < myDistance) {
-                closerPlayers += 1;
-                if (closerPlayers >= 2) {
-                    shouldGo = false;
-                    break;
+            if (player.getNumber() == me.getNumber() || player.getNumber() == 1) {
+                continue;
+            }
+            var playerDist = lugo4node_1.geo.distanceBetweenPoints(player.getPosition(), reader.getBall().getPosition());
+            if (playerDist < myDistance) {
+                closerPlayer++;
+                if (closerPlayer >= 2) {
+                    return false;
                 }
             }
         }
-        return shouldGo;
+        return true;
     };
     MyBot.prototype.nearestPlayers = function (players, pointTarget, count, ignore) {
         var playersDist = [];
