@@ -1,6 +1,6 @@
 `use strict`;
-import {GameSnapshotReader, PLAYER_STATE, Lugo, SPECS, Bot, Mapper, Region, geo} from '@lugobots/lugo4node'
-import {getMyExpectedPosition} from './settings';
+import { GameSnapshotReader, PLAYER_STATE, Lugo, SPECS, Bot, Mapper, Region, geo } from '@lugobots/lugo4node'
+import { getMyExpectedPosition } from './settings';
 
 const TEAM_HOME = Lugo.Team.Side.HOME
 const TEAM_AWAY = Lugo.Team.Side.AWAY
@@ -24,8 +24,8 @@ export class MyBot implements Bot {
 
     onDisputing(orderSet: Lugo.OrderSet, snapshot: Lugo.GameSnapshot): Lugo.OrderSet {
         try {
-            const {reader, me} = this.makeReader(snapshot)
-            const ballPosition = snapshot.getBall().getPosition()           
+            const { reader, me } = this.makeReader(snapshot)
+            const ballPosition = snapshot.getBall().getPosition()
 
             const ballRegion = this.mapper.getRegionFromPoint(ballPosition)
             const myRegion = this.mapper.getRegionFromPoint(me.getPosition())
@@ -33,9 +33,9 @@ export class MyBot implements Bot {
             // by default, I will stay at my tactic position
             let moveDestination = getMyExpectedPosition(reader, this.mapper, this.number)
             orderSet.setDebugMessage("returning to my position")
-            
+
             // if the ball is max 2 blocks away from me, I will move toward the ball
-            if(this.shouldICatchTheBall(reader, me)) {
+            if (this.shouldICatchTheBall(reader, me)) {
                 moveDestination = ballPosition
                 orderSet.setDebugMessage("trying to catch the ball")
             }
@@ -53,7 +53,7 @@ export class MyBot implements Bot {
 
     onDefending(orderSet: Lugo.OrderSet, snapshot: Lugo.GameSnapshot): Lugo.OrderSet {
         try {
-            const {reader, me} = this.makeReader(snapshot)
+            const { reader, me } = this.makeReader(snapshot)
             const ballPosition = snapshot.getBall().getPosition()
             const ballRegion = this.mapper.getRegionFromPoint(ballPosition)
             const myRegion = this.mapper.getRegionFromPoint(me.getPosition())
@@ -62,7 +62,7 @@ export class MyBot implements Bot {
             let moveDestination = getMyExpectedPosition(reader, this.mapper, this.number)
             orderSet.setDebugMessage("returning to my position")
             // if the ball is max 2 blocks away from me, I will move toward the ball
-            if(this.shouldICatchTheBall(reader, me)) {
+            if (this.shouldICatchTheBall(reader, me)) {
                 moveDestination = ballPosition
                 orderSet.setDebugMessage("trying to catch the ball")
             }
@@ -78,7 +78,7 @@ export class MyBot implements Bot {
 
     onHolding(orderSet: Lugo.OrderSet, snapshot: Lugo.GameSnapshot): Lugo.OrderSet {
         try {
-            const {reader, me} = this.makeReader(snapshot)
+            const { reader, me } = this.makeReader(snapshot)
 
             const myGoalCenter = this.mapper.getRegionFromPoint(reader.getOpponentGoal().getCenter())
             const currentRegion = this.mapper.getRegionFromPoint(me.getPosition())
@@ -90,14 +90,20 @@ export class MyBot implements Bot {
                 const closeOpponents = this.nearestPlayers(
                     reader.getTeam(reader.getOpponentSide()).getPlayersList(),
                     me.getPosition(),
-                    1, [])
+                    3, [])
 
+                const obstacles = this.findObstacles(
+                    me.getPosition(),
+                    reader.getOpponentGoal().getCenter(),
+                    closeOpponents.map(o => o.player.getPosition()),
+                    SPECS.PLAYER_SIZE * 2,
+                )
 
-                if (closeOpponents[0].dist < SPECS.PLAYER_SIZE * 3) {
+                if (obstacles.length > 0 && geo.distanceBetweenPoints(obstacles[0], me.getPosition()) < SPECS.PLAYER_SIZE * 5) {
                     const closeMate = this.nearestPlayers(
                         reader.getMyTeam().getPlayersList(),
                         me.getPosition(),
-                        1, [1, this.number])
+                        3, [1, this.number])
                     myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), closeMate[0].player.getPosition())
                 } else {
                     myOrder = reader.makeOrderMoveMaxSpeed(me.getPosition(), reader.getOpponentGoal().getCenter())
@@ -155,7 +161,7 @@ export class MyBot implements Bot {
 
     asGoalkeeper(orderSet: Lugo.OrderSet, snapshot: Lugo.GameSnapshot, state: PLAYER_STATE): Lugo.OrderSet {
         try {
-            const {reader, me} = this.makeReader(snapshot)
+            const { reader, me } = this.makeReader(snapshot)
             let position = reader.getBall().getPosition()
             if (state !== PLAYER_STATE.DISPUTING_THE_BALL) {
                 position = reader.getMyGoal().getCenter()
@@ -204,7 +210,7 @@ export class MyBot implements Bot {
         if (!me) {
             throw new Error("did not find myself in the game")
         }
-        return {reader, me}
+        return { reader, me }
     }
 
     private shouldICatchTheBall(reader: GameSnapshotReader, me: Lugo.Player): boolean {
@@ -256,4 +262,56 @@ export class MyBot implements Bot {
         return playersDist.slice(0, count)
     }
 
+    private findObstacles(origin: Lugo.Point, target: Lugo.Point, elements: Array<Lugo.Point>, minAcceptableDist: number): Array<Lugo.Point> {
+        const obstacles = []
+        for (const element of elements) {
+            const { dist, between } = this.getDistance(
+                element.getX(),
+                element.getY(),
+                origin.getX(),
+                origin.getY(),
+                target.getX(),
+                target.getY(),
+            )
+            if (between && dist <= minAcceptableDist) {
+                obstacles.push(element)
+            }
+        }
+        return obstacles
+    }
+
+    // https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+    private getDistance(obstacleX: number, obstacleY: number, x1: number, y1: number, x2: number, y2: number): { dist: number, between: boolean } {
+        const A = obstacleX - x1;
+        const B = obstacleY - y1;
+        const C = x2 - x1;
+        const D = y2 - y1;
+
+        const dot = A * C + B * D;
+        const len_sq = C * C + D * D;
+        let param = -1;
+        if (len_sq != 0) //in case of 0 length line
+            param = dot / len_sq;
+
+        let xx, yy;
+        let between = false
+        if (param < 0) {
+            xx = x1;
+            yy = y1;
+        } else if (param > 1) {
+            xx = x2;
+            yy = y2;
+        } else {
+            between = true
+            xx = x1 + param * C;
+            yy = y1 + param * D;
+        }
+
+        let dx = obstacleX - xx;
+        let dy = obstacleY - yy;
+        return {
+            dist: Math.sqrt(dx * dx + dy * dy),
+            between,
+        }
+    }
 }

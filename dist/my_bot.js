@@ -69,9 +69,10 @@ var MyBot = /** @class */ (function () {
                 myOrder = reader.makeOrderKickMaxSpeed(snapshot.getBall(), reader.getOpponentGoal().getCenter());
             }
             else {
-                var closeOpponents = this.nearestPlayers(reader.getTeam(reader.getOpponentSide()).getPlayersList(), me.getPosition(), 1, []);
-                if (closeOpponents[0].dist < lugo4node_1.SPECS.PLAYER_SIZE * 3) {
-                    var closeMate = this.nearestPlayers(reader.getMyTeam().getPlayersList(), me.getPosition(), 1, [1, this.number]);
+                var closeOpponents = this.nearestPlayers(reader.getTeam(reader.getOpponentSide()).getPlayersList(), me.getPosition(), 3, []);
+                var obstacles = this.findObstacles(me.getPosition(), reader.getOpponentGoal().getCenter(), closeOpponents.map(function (o) { return o.player.getPosition(); }), lugo4node_1.SPECS.PLAYER_SIZE * 2);
+                if (obstacles.length > 0 && lugo4node_1.geo.distanceBetweenPoints(obstacles[0], me.getPosition()) < lugo4node_1.SPECS.PLAYER_SIZE * 5) {
+                    var closeMate = this.nearestPlayers(reader.getMyTeam().getPlayersList(), me.getPosition(), 3, [1, this.number]);
                     myOrder = reader.makeOrderKickMaxSpeed(reader.getBall(), closeMate[0].player.getPosition());
                 }
                 else {
@@ -212,6 +213,50 @@ var MyBot = /** @class */ (function () {
             return a.dist - b.dist;
         });
         return playersDist.slice(0, count);
+    };
+    MyBot.prototype.findObstacles = function (origin, target, elements, minAcceptableDist) {
+        var obstacles = [];
+        for (var _i = 0, elements_1 = elements; _i < elements_1.length; _i++) {
+            var element = elements_1[_i];
+            var _a = this.getDistance(element.getX(), element.getY(), origin.getX(), origin.getY(), target.getX(), target.getY()), dist = _a.dist, between = _a.between;
+            if (between && dist <= minAcceptableDist) {
+                obstacles.push(element);
+            }
+        }
+        return obstacles;
+    };
+    // https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+    MyBot.prototype.getDistance = function (obstacleX, obstacleY, x1, y1, x2, y2) {
+        var A = obstacleX - x1;
+        var B = obstacleY - y1;
+        var C = x2 - x1;
+        var D = y2 - y1;
+        var dot = A * C + B * D;
+        var len_sq = C * C + D * D;
+        var param = -1;
+        if (len_sq != 0) //in case of 0 length line
+            param = dot / len_sq;
+        var xx, yy;
+        var between = false;
+        if (param < 0) {
+            xx = x1;
+            yy = y1;
+        }
+        else if (param > 1) {
+            xx = x2;
+            yy = y2;
+        }
+        else {
+            between = true;
+            xx = x1 + param * C;
+            yy = y1 + param * D;
+        }
+        var dx = obstacleX - xx;
+        var dy = obstacleY - yy;
+        return {
+            dist: Math.sqrt(dx * dx + dy * dy),
+            between: between
+        };
     };
     return MyBot;
 }());
