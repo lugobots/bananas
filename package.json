@@ -13,7 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@lugobots/lugo4node": "^1.0.1-beta.1"
+    "@lugobots/lugo4node": "^1.0.1-beta.5"
   },
   "devDependencies": {
     "tsc-watch": "^5.0.3",
